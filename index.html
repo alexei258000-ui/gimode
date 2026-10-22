@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>График 2/2 и Зарплата</title>
+<style>
+  body { font-family: Arial, sans-serif; background: #f0f2f5; margin: 0; padding: 15px 10px; display: flex; justify-content: center; }
+  .card { background: #fff; border-radius: 16px; padding: 20px; max-width: 420px; width: 100%; box-shadow: 0 4px 15px rgba(0,0,0,.1); box-sizing: border-box;}
+  h1 { font-size: 20px; text-align: center; margin-top: 0; color: #333;}
+  label { display: block; margin: 10px 0 4px; font-weight: bold; font-size: 13px; color: #555;}
+  input, select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 8px; font-size: 16px; box-sizing: border-box; }
+  .row { display: flex; gap: 10px; }
+  .col { flex: 1; }
+  button { width: 100%; margin-top: 15px; padding: 14px; background: #2e7d32; color: #fff; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer;}
+  
+  /* Стили для календаря */
+  .calendar { margin-top: 20px; display: none; }
+  .grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; text-align: center; }
+  .day-name { font-size: 11px; font-weight: bold; color: #888; padding-bottom: 5px;}
+  .day { padding: 10px 0; border-radius: 6px; font-size: 14px; font-weight: bold; background: #f9f9f9; color: #333;}
+  .day.work { background: #4caf50; color: #fff; }
+  .day.off { background: #e0e0e0; color: #666; }
+  .day.empty { background: transparent; }
+  
+  /* Итоги */
+  .summary { margin-top: 20px; padding: 15px; background: #e8f5e9; border-radius: 8px; font-size: 15px; line-height: 1.6; }
+  .summary b { color: #2e7d32; font-size: 18px; }
+  .legend { display: flex; justify-content: center; gap: 15px; margin-top: 10px; font-size: 12px; color: #555;}
+  .leg-item { display: flex; align-items: center; gap: 5px;}
+  .box { width: 12px; height: 12px; border-radius: 3px; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>📅 График 2/2</h1>
+  
+  <div class="row">
+    <div class="col">
+      <label>Месяц</label>
+      <select id="month">
+        <option value="0">Январь</option><option value="1">Февраль</option>
+        <option value="2">Март</option><option value="3">Апрель</option>
+        <option value="4">Май</option><option value="5">Июнь</option>
+        <option value="6">Июль</option><option value="7">Август</option>
+        <option value="8">Сентябрь</option><option value="9">Октябрь</option>
+        <option value="10">Ноябрь</option><option value="11">Декабрь</option>
+      </select>
+    </div>
+    <div class="col">
+      <label>Год</label>
+      <input type="number" id="year" value="2024" min="2024" max="2030">
+    </div>
+  </div>
+
+  <label>С чего начинается 1-е число?</label>
+  <select id="start">
+    <option value="0">С рабочей смены (2 рабочих дня)</option>
+    <option value="2">С выходной смены (2 выходных дня)</option>
+  </select>
+
+  <label>Оплата за 1 смену (₽)</label>
+  <input type="number" id="rate" value="4000" min="0">
+
+  <button onclick="build()">Построить график</button>
+
+  <div class="calendar" id="calendar">
+    <div class="grid">
+      <div class="day-name">Пн</div><div class="day-name">Вт</div><div class="day-name">Ср</div>
+      <div class="day-name">Чт</div><div class="day-name">Пт</div><div class="day-name">Сб</div><div class="day-name">Вс</div>
+      <div id="days-container" style="display: contents;"></div>
+    </div>
+    
+    <div class="legend">
+      <div class="leg-item"><div class="box" style="background:#4caf50;"></div> Работа</div>
+      <div class="leg-item"><div class="box" style="background:#e0e0e0;"></div> Выходной</div>
+    </div>
+
+    <div class="summary" id="res"></div>
+  </div>
+</div>
+
+<script>
+function build() {
+  const year = +document.getElementById('year').value;
+  const month = +document.getElementById('month').value;
+  const offset = +document.getElementById('start').value; // 0 - работа, 2 - выходной
+  const rate = +document.getElementById('rate').value;
+  
+  // Определяем количество дней в месяце
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  
+  // Определяем, с какого дня недели начинается месяц (0-Вс, 1-Пн)
+  let firstDay = new Date(year, month, 1).getDay(); 
+  let emptyCells = firstDay === 0 ? 6 : firstDay - 1; // Сдвиг для Пн-первый
+  
+  const container = document.getElementById('days-container');
+  container.innerHTML = '';
+  
+  // Добавляем пустые ячейки для выравнивания календаря
+  for (let i = 0; i < emptyCells; i++) {
+    const div = document.createElement('div');
+    div.className = 'day empty';
+    container.appendChild(div);
+  }
+  
+  let workDays = 0;
+  
+  // Заполняем дни месяца
+  for (let d = 1; d <= daysInMonth; d++) {
+    const div = document.createElement('div');
+    const cycle = (d - 1 + offset) % 4; // Цикл из 4 дней
+    const isWork = cycle < 2; // 0 и 1 - работа, 2 и 3 - выходной
+    
+    if (isWork) {
+      div.className = 'day work';
+      workDays++;
+    } else {
+      div.className = 'day off';
+    }
+    
+    div.textContent = d;
+    container.appendChild(div);
+  }
+  
+  const total = workDays * rate;
+  
+  // Показываем результат
+  document.getElementById('calendar').style.display = 'block';
+  document.getElementById('res').innerHTML = 
+    `Рабочих смен: <b>${workDays}</b><br>` +
+    `Выходных дней: <b>${daysInMonth - workDays}</b><br>` +
+    `Зарплата за месяц: <b>${total.toLocaleString('ru-RU')} ₽</b>`;
+}
+</script>
+</body>
+</html>
